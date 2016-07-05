@@ -1,0 +1,32 @@
+#!/bin/bash
+
+EXTRA_ARGS=$@
+
+rm -rf CMakeFiles
+rm -f CMakeCache.txt
+
+cmake \
+ -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
+ -D CMAKE_BUILD_TYPE:STRING=DEBUG \
+ -D CMAKE_C_FLAGS:STRING="-DWITH_MPI"\
+ \
+ -D CMAKE_C_COMPILER:STRING=mpicc \
+ -D CMAKE_CXX_COMPILER:STRING=mpic++ \
+ -D CMAKE_CXX_FLAGS:STRING="-DWITH_MPI"\
+ \
+ -D CMAKE_EXE_LINKER_FLAGS:STRING="-lpthread"\
+ \
+ -D CMAKE_INSTALL_PREFIX:PATH=".." \
+ \
+ -D TPL_ENABLE_CUDA:BOOL=OFF \
+ -D TPL_ENABLE_Pthread:BOOL=ON \
+ $EXTRA_ARGS ..
+
+CONFIG="../kokkos/core/src/KokkosCore_config.h"
+
+rm -f ${CONFIG}
+
+echo "#ifndef KOKKOS_CORE_CONFIG_H" >> ${CONFIG}
+echo "#define KOKKOS_CORE_CONFIG_H" >> ${CONFIG}
+echo "#define KOKKOS_HAVE_PTHREAD" >> ${CONFIG}
+echo "#endif" >> ${CONFIG}

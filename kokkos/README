@@ -1,0 +1,116 @@
+MiniAero Readme
+---------------
+
+Sections:
+---------
+I) Introduction
+II) Building
+III) Running
+IV) Testing
+
+
+I) Introduction
+
+MiniAero is a mini-application for the evaulation of programming models and hardware
+for next generation platforms.  MiniAero is an explicit (using RK4) unstructured 
+finite volume code that solves the compressible Navier-Stokes equations. Both
+inviscid and viscous terms are included.  The viscous terms can be optionally
+included or excluded.
+
+Kokkos multi-dimensional arrays are used to store the connectivity and
+flow data. Kokkos is also used as the data-parallel threading model
+for multicore-CPUs, GPUs, and Intel Xeon Phi.  Sample cmake files
+are included for building for these different platforms. A snapshot
+of Kokkos is included with the MiniAero source code.
+
+Meshes are created in code and are simple 3D hex8 meshes.  These
+meshes are generated on the CPU and then moved to the
+device(which could be the CPU itself, CPU or Xeon Phi).  While
+the meshes generated in code are structured, the code itself
+uses unstructured mesh data structures and a truly unstructured
+mesh could be read in in the future.  In the future, these
+meshes may be created on device(GPU or Xeon Phi or other).
+
+---------------------
+
+II) Building MiniAero
+
+MiniAero has minimal dependencies.  It directly depends on the
+Trilinos Kokkos library.  A snap shot is included in the 
+MiniAero source code. MPI is an optionally depencency but 
+the use of MPI strongly encouraged. Indirect dependencies from Kokkos
+include the PThread library, openMP, and/or CUDA. The PThread library
+is usually installed on machines and has equal or better performance
+than openMP.  CUDA is needed to build for NVidia GPUs.
+
+MiniAero uses CMake as its build system.  Example CMake setup scripts
+are included in the root directory.  The script "do-cmake-miniaero-mpi-opt"
+should work for most setups where PThread and MPI are both installed as long
+as mpicc and mpicc++ are in your path. For example, to build using this script:
+
+#Change to the make direction
+cd make
+
+#Run the CMake setup script.
+./do-cmake-miniaero-mpi-opt
+
+#Run make
+make
+
+The executable will then be installed under make/src.
+
+Other example CMake setup scripts are included in the MiniAero root directory
+including setup scripts for CUDA and Blue Gene Q(BGQ).  Most of the options in
+in the CMake setup script are options that need to be passed to Kokkos 
+rather than directly used by MiniAero.
+
+---------------------
+
+III) Running MiniAero
+To run MiniAero, run the executable in serial:
+./miniaero
+Or using MPI for parallel:
+mpirun -np #num_procs ./miniaero
+
+MiniAero will read in the input file which is hard-coded to be named
+miniaero.inp.  miniaero.inp must be in the current directory.
+
+The input file consists of 10 lines:
+
+problem_type (0 - Sod, 1 - Viscous Flat Plate, 2 - Inviscid Ramp)
+lx ly lz ramp_angle (lx,ly,lz are domain max dimensions in x,y z) (ramp_angle either SOD(angle=0)  or ramp problem)
+nx ny nz (Total Number of cells in each direcion)
+ntimesteps (number of timestep)
+dt (timestep size)
+nthreads (Number of threads/mpi rank)
+output_results (0 - no, anything else yes)
+information output_frequency (Things like timestep, iteration count).
+second order space (0 - no, anything else yes)
+viscous (0 - no, anything else yes)
+
+An example(Inviscid second-order in space 30 degree ramp problem with 2.0x2.0x1.0 
+domain with 64x32x2 points, 400 timestep, 1e-5 timestep size, 
+outputs the results, and outputs an information summary every 100 timesteps):
+2
+2.0 2.0 1.0 30.0
+64 32 2
+400
+1e-5
+1
+1
+100
+1
+0
+
+--------------------
+
+IV) Testing MiniAero
+
+A handful for integration tests are included for sanity check.  It is possible that these tests
+will diff if using different compilers.
+
+The tests are included in the test/ directory. To run all tests run
+run_tests.sh
+
+The README in the test/ directory describes the different tests.  The tests also has good
+examples of input file options.

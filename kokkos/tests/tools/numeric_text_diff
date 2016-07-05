@@ -1,0 +1,106 @@
+#!/usr/bin/env python
+
+from optparse import OptionParser
+import os
+import popen2
+import sys
+
+# Simple wrapper for when failure discovered
+def fail(message):
+  global status_file
+  if status_file:
+    status_file.write("'fail'\n")
+    status_file.close()
+  raise SystemExit(message)
+
+# Parse any command line options
+parser = OptionParser(usage="usage: %prog [options] file1 file2")
+parser.add_option("", "--relative-tolerance", dest="rel_tol",
+                  type='float', default=1e-3,
+                  help="Maximum relative tolerance to allow")
+parser.add_option("", "--floor", dest="floor",
+                  type='float', default=1e-6,
+                  help="Floor -- values below which to treat as 0")
+parser.add_option("-l", "--log-file", dest="log_file",
+                  type='string', default=None,
+                  help="File to log result output to (default to stdout)")
+parser.add_option("-s", "--status-file", dest="status_file",
+                  type='string', default=None,
+                  help="File to record pass/diff/fail status to")
+(options, args) = parser.parse_args()
+
+if len(args) != 2:
+  fail("Need two files to diff")
+(file1, file2) = args
+
+status_file = None
+if options.status_file:
+  status_file = open(options.status_file, 'w')
+  status_file.write("Tst['Status'] = ")
+for filename in args:
+  if not os.path.isfile(filename):
+    fail("%s does not exist or is not a normal file!" % filename)
+
+# Diff the two files
+diff_output = os.popen("diff -u %s %s" % (file1, file2), "r")
+before = []
+after = []
+diff_output.readline()  # Skip info about file1
+diff_output.readline()  # Skip info about file2
+for line in diff_output:
+  if line.startswith('-'):
+    before.append(line[1:])
+  if line.startswith('+'):
+    after.append(line[1:])
+  # Otherwise, just ignore the line...
+if len(before) != len(after):
+  fail("Files have differing line counts.")
+
+# Loop over the lines that changed between the two files
+differences = ''
+for i in xrange(len(before)):
+  before_fields = before[i].split()
+  after_fields  = after[i].split()
+  if len(before_fields) != len(after_fields):
+    fail('Number of fields differ for the following line:\n' +
+         '   %s   %s' % (before[i], after[i]))
+
+  # Loop over the fields present in the given line
+  for j in xrange(len(before_fields)):
+    before_val = before_fields[j]
+    after_val  = after_fields[j]
+
+    # Compare the values for this field
+    if before_val == after_val: continue
+
+    diff = False
+    try:
+      before_val = float(before_val)
+      after_val  = float(after_val)
+    except ValueError:
+      differences += '-' + before[i] + '+' + after[i] + '\n'
+      break
+    if not diff and \
+       (abs(before_val) > options.floor or abs(after_val) > options.floor):
+      rel_err = abs(before_val - after_val)/max(abs(before_val), abs(after_val))
+      if rel_err > options.rel_tol:
+        differences += '-' + before[i] + '+' + after[i] + '\n'
+        break
+
+# Print out the differences  
+log_file = sys.stdout
+if options.log_file:
+  log_file = open(options.log_file, 'w')
+if differences:
+  if status_file:
+    status_file.write("'diff'\n")
+    status_file.close()
+  log_file.write("Files differ with relative_tol=%g & floor=%g:\n\n%s\n" % 
+                    (options.rel_tol, options.floor, differences.strip()))
+  sys.exit(1)
+else:
+  if status_file:
+    status_file.write("'pass'\n")
+    status_file.close()
+  log_file.write("Files are the same.\n")
+  sys.exit(0)

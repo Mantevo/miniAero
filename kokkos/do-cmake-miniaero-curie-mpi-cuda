@@ -1,0 +1,39 @@
+#!/bin/bash
+
+EXTRA_ARGS=$@
+
+rm -rf CMakeFiles
+rm -f CMakeCache.txt
+
+cmake \
+ -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON \
+ -D CMAKE_BUILD_TYPE:STRING=RELEASE \
+\
+ -D CMAKE_C_COMPILER:STRING=gcc \
+ -D CMAKE_C_FLAGS:STRING="-DWITH_MPI"\
+ \
+ -D CMAKE_CXX_COMPILER:STRING=g++ \
+ -D CMAKE_CXX_FLAGS:STRING="-DWITH_MPI"\
+ \
+ -D MPI_INCLUDE_DIRS:PATH="/opt/cray/mpt/6.1.1/gni/mpich2-gnu/48/include" \
+ -D MPI_LIBRARY_DIRS:PATH="/opt/cray/mpt/6.1.1/gni/mpich2-gnu/48/lib" \
+ \
+ -D CMAKE_EXE_LINKER_FLAGS:STRING="-lpthread -lmpich" \
+ \
+ -D CMAKE_INSTALL_PREFIX:PATH=".." \
+ \
+ -D TPL_ENABLE_CUDA:BOOL=ON \
+ -D CUDA_NVCC_FLAGS:STRING="-arch=sm_20" \
+ -D TPL_ENABLE_HWLOC:BOOL=OFF \
+ -D TPL_ENABLE_Pthread:BOOL=ON \
+ $EXTRA_ARGS ..
+
+CONFIG="../kokkos/core/src/KokkosCore_config.h"
+
+rm -f ${CONFIG}
+
+echo "#ifndef KOKKOS_CORE_CONFIG_H" >> ${CONFIG}
+echo "#define KOKKOS_CORE_CONFIG_H" >> ${CONFIG}
+echo "#define KOKKOS_HAVE_PTHREAD" >> ${CONFIG}
+echo "#define KOKKOS_HAVE_CUDA" >> ${CONFIG}
+echo "#endif" >> ${CONFIG}
