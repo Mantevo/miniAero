@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "Running parallel ramp test using 16 processors."
-mpirun -np 16 ../../make/src/miniaero.exe &> /dev/null
+mpirun -np 16 $1 &> /dev/null
 diff=0
 for i in `seq 0 15`;
 do 

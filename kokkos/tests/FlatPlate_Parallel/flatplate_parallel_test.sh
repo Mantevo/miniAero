@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "Running parallel flat plate test using 8 processors."
-mpirun -np 8 ../../make/src/miniaero.exe &> /dev/null
+mpirun -np 8 $1 &> /dev/null
 diff=0
 for i in `seq 0 7`;
 do 

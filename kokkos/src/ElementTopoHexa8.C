@@ -26,6 +26,9 @@
 *LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 *(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 *SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
+#if WITH_MPI
+#include <mpi.h>
+#endif
 #include "ElementTopoHexa8.h"
 
 #include <algorithm>
@@ -35,9 +38,6 @@
 
 #include "MathTools.h"
 
-#if WITH_MPI
-#include <mpi.h>
-#endif
 
 // Static variable declarations
 // Gauss point info

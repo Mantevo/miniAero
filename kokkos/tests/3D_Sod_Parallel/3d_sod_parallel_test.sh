@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "Running parallel 3D sod test using 4 processors."
-mpirun -np 4 ../../make/src/miniaero.exe &> /dev/null
+mpirun -np 4 $1 &> /dev/null
 diff=0
 for i in `seq 0 3`;
 do 
@@ -14,5 +14,5 @@ else
   ESTATUS=0
 fi
 
-rm results.? gradients.? limiters.? setupmesh.?
+#rm results.? gradients.? limiters.? setupmesh.?
 exit $ESTATUS

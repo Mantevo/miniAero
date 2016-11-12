@@ -26,13 +26,14 @@
 *LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 *(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 *SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*/
+#if WITH_MPI
+#include <mpi.h>
+#endif
 #include "Main.h"
 #include "TimeSolverExplicitRK4.h"
 #include "Parallel3DMesh.h"
 #include "MeshData.h"
 #include "Options.h"
-#include "YAML_Doc.h"
-#include "YAML_Default.h"
 
 #include <unistd.h>
 #include <cstddef>
@@ -41,158 +42,130 @@
 #include <cstdlib>
 #include <ctime>
 
-#include <Kokkos_Threads.hpp>
-
-
-#if WITH_MPI
-#include <mpi.h>
+#ifdef MINIAERO_FPMATH_CHECK
+#define _GNU_SOURCE
+#include <fenv.h>
+#include <xmmintrin.h>
 #endif
 
-double test_cuda(const Options & simulation_options);
-void add_params_to_yaml(YAML_Doc& doc, Options& options);
-void add_configuration_to_yaml(YAML_Doc& doc, int numranks, int numthreads);
-void add_runtime_to_yaml(YAML_Doc& doc, double setup_time, double execution_time, double total_time);
+#include <Kokkos_Core.hpp>
 
 int main(int argc, char *argv[])
 {
-time_t startTime=0, endTime=0;
-
-
-
-  time(&startTime);
+#ifdef MINIAERO_FPMATH_CHECK
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() & ~_MM_MASK_INVALID);
+#endif
+    
   int num_procs, my_id;
 #if WITH_MPI
   MPI_Init(&argc,&argv);
   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
+  double startTime = 0.0, endTime = 0.0;
+  startTime = MPI_Wtime();
 #else
+  time_t startTime=0, endTime=0;
+  time(&startTime);
   num_procs=1;
   my_id=0;
 #endif
 
   Options simulation_options;
   simulation_options.read_options_file();
-  YAML_Doc doc("MiniAero", "1.0");
-  if(my_id==0){
-    add_params_to_yaml(doc, simulation_options);
-    add_configuration_to_yaml(doc, num_procs, simulation_options.nthreads);
+
+  Kokkos::InitArguments init_args;
+
+  char* env_omp_threads = getenv("OMP_NUM_THREADS");
+  if(NULL == env_omp_threads) {
+    init_args.num_threads = simulation_options.nthreads;
+  } else {
+    const int env_omp_threads_int = atoi(env_omp_threads);
+
+    if(env_omp_threads_int != simulation_options.nthreads) {
+        printf("Detected OMP_NUM_THREADS in environment: %d overriding input deck %d\n",
+            env_omp_threads_int, simulation_options.nthreads);
+    }
+
+    init_args.num_threads = env_omp_threads_int;
   }
 
-double execution_time = 0.0;
-#if HAVE_CUDA
-  execution_time = test_cuda(simulation_options);
-#else
-  execution_time = test_host(simulation_options);
-#endif
+  Kokkos::initialize(init_args );
+  run_host(simulation_options);
 
+#if WITH_MPI
+  endTime = MPI_Wtime();
+  double elapsedTime = endTime-startTime;
+#else
   time(&endTime);
   double elapsedTime = difftime(endTime,startTime);
+#endif
+  Kokkos::finalize();
+#if WITH_MPI
+  MPI_Finalize();
+#endif
   if(my_id==0){
     fprintf(stdout,"\n ... Total elapsed time: %8.2f seconds ...\n",elapsedTime);
-  }
-  double setup_time = elapsedTime-execution_time;
-
-  if(my_id==0){
-    add_runtime_to_yaml(doc,setup_time, execution_time, elapsedTime);
-    doc.generateYAML();
   }
   return 0;
 }
 
-double test_host(const Options & simulation_options){
-
+void run_host(const Options & simulation_options){
   int num_procs, my_id;
 #if WITH_MPI
   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
   MPI_Comm_rank(MPI_COMM_WORLD, &my_id);
+  double setupStartTime = 0.0, setupEndTime = 0.0;
+  setupStartTime = MPI_Wtime();
 #else
   num_procs=1;
   my_id=0;
+  time_t setupStartTime=0, setupEndTime=0;
+  time(&setupStartTime);
 #endif
-
-
 
 //  size_t numa_node_count = 1;
   size_t numa_node_thread_count = simulation_options.nthreads;
-  Kokkos::Threads::initialize( numa_node_thread_count );
 
   //Setup mesh on host
-  time_t setupStartTime=0, setupEndTime=0;
-  time(&setupStartTime);
   int nx = simulation_options.nx, ny = simulation_options.ny, nz = simulation_options.nz;
   double lx = simulation_options.lx, ly = simulation_options.ly, lz = simulation_options.lz;
   double angle = simulation_options.angle;
   int problem_type = simulation_options.problem_type;
 
   Parallel3DMesh mesh(nx, ny, nz, lx, ly, lz, problem_type, angle);
-  struct MeshData<Kokkos::Threads> mesh_data;
-  mesh.fillMeshData<Kokkos::Threads>(mesh_data);
+  struct MeshData<Kokkos::DefaultExecutionSpace> mesh_data;
+  mesh.fillMeshData<Kokkos::DefaultExecutionSpace>(mesh_data);
+  double setupElapsedTime = 0.0;
+#if WITH_MPI
+  setupEndTime = MPI_Wtime();
+  setupElapsedTime = setupEndTime-setupStartTime; 
+#else
   time(&setupEndTime);
-  double setupElapsedTime = difftime(setupEndTime,setupStartTime);
+  setupElapsedTime = difftime(setupEndTime,setupStartTime);
+#endif
   if(my_id==0){
     fprintf(stdout,"\n ... Setup time: %8.2f seconds ...\n", setupElapsedTime);
   }
 
   //Run on device
+#if WITH_MPI
+  double runStartTime=0, runEndTime=0;
+  runStartTime = MPI_Wtime();
+#else
   time_t runStartTime=0, runEndTime=0;
   time(&runStartTime);
-  TimeSolverExplicitRK4<Kokkos::Threads> * time_solver = new TimeSolverExplicitRK4<Kokkos::Threads>(mesh_data, simulation_options);
+#endif
+  TimeSolverExplicitRK4<Kokkos::DefaultExecutionSpace> * time_solver = new TimeSolverExplicitRK4<Kokkos::DefaultExecutionSpace>(mesh_data, simulation_options);
   time_solver->Solve();
   delete time_solver;
-  time(&runEndTime);
-  double runElapsedTime = difftime(runEndTime,runStartTime);
-  if(my_id==0){
-    fprintf(stdout,"\n ... Device Run time: %8.2f seconds ...\n", runElapsedTime);
-  }
-
-
-  Kokkos::Threads::finalize();
+ 
+  double runElapsedTime=0;
 #if WITH_MPI
-  MPI_Finalize();
+  runEndTime = MPI_Wtime();
+  runElapsedTime = runEndTime-runStartTime;
+#else
+  time(&runEndTime);
+  runElapsedTime = difftime(runEndTime,runStartTime);
 #endif
-
-  return runElapsedTime;
-
 }
 
-void add_params_to_yaml(YAML_Doc& doc, Options & params)
-{
-  doc.add("Global Run Parameters","");
-  doc.get("Global Run Parameters")->add("mesh cells","");
-  doc.get("Global Run Parameters")->get("mesh cells")->add("nx",params.nx);
-  doc.get("Global Run Parameters")->get("mesh cells")->add("ny",params.ny);
-  doc.get("Global Run Parameters")->get("mesh cells")->add("nz",params.nz);
-  doc.get("Global Run Parameters")->add("time step", params.dt);
-  doc.get("Global Run Parameters")->add("number of time steps", params.ntimesteps);
-  std::string second_order = params.second_order_space ? "2nd" : "1st";
-  doc.get("Global Run Parameters")->add("spatial discretization order:", second_order);
-  std::string viscous = params.viscous ? "Yes" : "No";
-  doc.get("Global Run Parameters")->add("viscous:", viscous);
-}
-
-void add_configuration_to_yaml(YAML_Doc& doc, int numprocs, int numthreads)
-{
-  doc.get("Global Run Parameters")->add("number of MPI Ranks:", numprocs);
-  doc.get("Global Run Parameters")->add("number of threads/MPI Rank", numthreads);
-
-  doc.add("Platform","");
-  doc.get("Platform")->add("hostname", MINIAERO_HOSTNAME);
-  doc.get("Platform")->add("processor", MINIAERO_PROCESSOR);
-
-  doc.add("Build","");
-  doc.get("Build")->add("CXX",MINIAERO_CXX);
-  doc.get("Build")->add("CXXFLAGS",MINIAERO_CXXFLAGS);
-
-  std::string using_mpi("no");
-#ifdef WITH_MPI 
-  using_mpi = "yes";
-#endif
-  doc.get("Build")->add("using MPI",using_mpi);
-}
-
-void add_runtime_to_yaml(YAML_Doc& doc, double setup_time, double execution_time, double total_time)
-{
-  doc.add("Setup Time(Seconds)", setup_time);
-  doc.add("Execution Time(Seconds)", execution_time);
-  doc.add("Total Time(Seconds)", total_time);
-}
