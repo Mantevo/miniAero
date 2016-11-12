@@ -11,13 +11,11 @@ CXXFLAGS = -O3 -g -DWITH_MPI=1 -DATOMICS_FLUX
 LINK = ${CXX}
 LINKFLAGS =  
 
+KOKKOS_CUDA_OPTIONS=enable_lambda
 DEPFLAGS = -M
 
-vpath %.C src
-
-SRC = $(wildcard src/*.C)
-SRC_OBJ = $(SRC:.C=.o)
-OBJ = $(notdir $(SRC_OBJ))
+SRC = $(wildcard *.C)
+OBJ = $(SRC:.C=.o)
 LIB =
 
 CXXFLAGS += -Isrc
@@ -30,6 +28,10 @@ $(EXE): $(OBJ) $(KOKKOS_LINK_DEPENDS)
 
 clean: kokkos-clean 
 	rm -f *.o *.cuda *.host
+
+test: $(EXE)
+	cd tests; \
+	./run_tests.sh ../$(EXE) MPI
 
 # Compilation rules
 

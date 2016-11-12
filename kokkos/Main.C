@@ -73,24 +73,8 @@ int main(int argc, char *argv[])
   Options simulation_options;
   simulation_options.read_options_file();
 
-  Kokkos::InitArguments init_args;
-
-  char* env_omp_threads = getenv("OMP_NUM_THREADS");
-  if(NULL == env_omp_threads) {
-    init_args.num_threads = simulation_options.nthreads;
-  } else {
-    const int env_omp_threads_int = atoi(env_omp_threads);
-
-    if(env_omp_threads_int != simulation_options.nthreads) {
-        printf("Detected OMP_NUM_THREADS in environment: %d overriding input deck %d\n",
-            env_omp_threads_int, simulation_options.nthreads);
-    }
-
-    init_args.num_threads = env_omp_threads_int;
-  }
-
-  Kokkos::initialize(init_args );
-  run_host(simulation_options);
+  Kokkos::initialize(argc,argv);
+  run(simulation_options);
 
 #if WITH_MPI
   endTime = MPI_Wtime();
@@ -109,7 +93,7 @@ int main(int argc, char *argv[])
   return 0;
 }
 
-void run_host(const Options & simulation_options){
+void run(const Options & simulation_options){
   int num_procs, my_id;
 #if WITH_MPI
   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
@@ -122,9 +106,6 @@ void run_host(const Options & simulation_options){
   time_t setupStartTime=0, setupEndTime=0;
   time(&setupStartTime);
 #endif
-
-//  size_t numa_node_count = 1;
-  size_t numa_node_thread_count = simulation_options.nthreads;
 
   //Setup mesh on host
   int nx = simulation_options.nx, ny = simulation_options.ny, nz = simulation_options.nz;

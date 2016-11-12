@@ -17,16 +17,9 @@ finite volume code that solves the compressible Navier-Stokes equations. Both
 inviscid and viscous terms are included.  The viscous terms can be optionally
 included or excluded.
 
-Kokkos multi-dimensional arrays are used to store the connectivity and
-flow data. Kokkos is also used as the data-parallel threading model
-for multicore-CPUs, GPUs, and Intel Xeon Phi.  Sample cmake files
-are included for building for these different platforms. A snapshot
-of Kokkos is included with the MiniAero source code.
-
 Meshes are created in code and are simple 3D hex8 meshes.  These
-meshes are generated on the CPU and then moved to the
-device(which could be the CPU itself, CPU or Xeon Phi).  While
-the meshes generated in code are structured, the code itself
+meshes are generated on the host and then moved to the
+device.  While the meshes generated in code are structured, the code itself
 uses unstructured mesh data structures and a truly unstructured
 mesh could be read in in the future.  In the future, these
 meshes may be created on device(GPU or Xeon Phi or other).
@@ -35,34 +28,31 @@ meshes may be created on device(GPU or Xeon Phi or other).
 
 II) Building MiniAero
 
-MiniAero has minimal dependencies.  It directly depends on the
-Trilinos Kokkos library.  A snap shot is included in the 
-MiniAero source code. MPI is an optionally depencency but 
-the use of MPI strongly encouraged. Indirect dependencies from Kokkos
-include the PThread library, openMP, and/or CUDA. The PThread library
-is usually installed on machines and has equal or better performance
-than openMP.  CUDA is needed to build for NVidia GPUs.
+MiniAero has minimal dependencies. It directly depends on the
+Kokkos library. You can check this out from github:
+git clone https://github.com:kokkos/kokkos
 
-MiniAero uses CMake as its build system.  Example CMake setup scripts
-are included in the root directory.  The script "do-cmake-miniaero-mpi-opt"
-should work for most setups where PThread and MPI are both installed as long
-as mpicc and mpicc++ are in your path. For example, to build using this script:
+MiniAero uses simple Makefiles and builds Kokkos as an 
+integrated library (i.e. you do not need to pre-install 
+Kokkos). 
 
-#Change to the make direction
-cd make
+Simply run:
+make KOKKOS_PATH=${PATH_TO_KOKKOS_CHECKOUT_DIRECTORY} -j 
+or 
+make KOKKOS_PATH=${PATH_TO_KOKKOS_CHECKOUT_DIRECTORY} -f Makefile.mpi -j
 
-#Run the CMake setup script.
-./do-cmake-miniaero-mpi-opt
+This will produce miniAero.host and miniAero.mpi.
 
-#Run make
-make
+If you checked Kokkos out directly in your home directory (i.e. it is located 
+in ${HOME}/kokkos. You do not need to specify the path. 
 
-The executable will then be installed under make/src.
+Usual Kokkos gnu make options apply. For example to build on IBM Power8 for
+NVIDIA P100 GPUs:
+make KOKKOS_ARCH=Power8,Pascal60 KOKKOS_DEVICES=Cuda,OpenMP -j
+or to build for Intel KNL:
+make KOKKOS_ARCH=KNL CXX=icpc -j
 
-Other example CMake setup scripts are included in the MiniAero root directory
-including setup scripts for CUDA and Blue Gene Q(BGQ).  Most of the options in
-in the CMake setup script are options that need to be passed to Kokkos 
-rather than directly used by MiniAero.
+For more information please refer to the Kokkos documentation. 
 
 ---------------------
 
@@ -82,7 +72,6 @@ lx ly lz ramp_angle (lx,ly,lz are domain max dimensions in x,y z) (ramp_angle ei
 nx ny nz (Total Number of cells in each direcion)
 ntimesteps (number of timestep)
 dt (timestep size)
-nthreads (Number of threads/mpi rank)
 output_results (0 - no, anything else yes)
 information output_frequency (Things like timestep, iteration count).
 second order space (0 - no, anything else yes)
@@ -97,7 +86,6 @@ outputs the results, and outputs an information summary every 100 timesteps):
 400
 1e-5
 1
-1
 100
 1
 0
@@ -110,7 +98,9 @@ A handful for integration tests are included for sanity check.  It is possible t
 will diff if using different compilers.
 
 The tests are included in the test/ directory. To run all tests run
-run_tests.sh
+make test
+or
+make -f Makefile.mpi test
 
 The README in the test/ directory describes the different tests.  The tests also has good
 examples of input file options.

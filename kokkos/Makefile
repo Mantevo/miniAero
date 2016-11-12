@@ -8,6 +8,7 @@ ifneq (,$(findstring Cuda,$(KOKKOS_DEVICES)))
 CXX = ${KOKKOS_PATH}/config/nvcc_wrapper
 EXE = miniAero.cuda
 KOKKOS_ARCH = "SNB,Kepler35"
+KOKKOS_CUDA_OPTIONS=enable_lambda
 else
 CXX = g++
 EXE = miniAero.host
@@ -19,11 +20,8 @@ LINKFLAGS =
 
 DEPFLAGS = -M
 
-vpath %.C src
-
-SRC = $(wildcard src/*.C)
-SRC_OBJ = $(SRC:.C=.o)
-OBJ = $(notdir $(SRC_OBJ))
+SRC = $(wildcard *.C)
+OBJ = $(SRC:.C=.o)
 LIB =
 
 CXXFLAGS += -Isrc
@@ -36,6 +34,10 @@ $(EXE): $(OBJ) $(KOKKOS_LINK_DEPENDS)
 
 clean: kokkos-clean 
 	rm -f *.o *.cuda *.host
+
+test: $(EXE)
+	cd tests; \
+	./run_tests.sh ../$(EXE)
 
 # Compilation rules
 

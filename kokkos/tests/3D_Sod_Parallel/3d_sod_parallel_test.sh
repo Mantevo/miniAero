@@ -14,5 +14,5 @@ else
   ESTATUS=0
 fi
 
-#rm results.? gradients.? limiters.? setupmesh.?
+rm results.? gradients.? limiters.? setupmesh.?
 exit $ESTATUS
