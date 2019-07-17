@@ -130,7 +130,7 @@ void copy_faces(Faces<Device> device_faces, std::vector<Face> & mesh_faces){
     typedef Kokkos::BinOp1D< view_type > CompType;
     view_type face_cell_left = Kokkos::subview(device_faces.face_cell_conn_,Kokkos::ALL(),0);
 
-    typedef Kokkos::Experimental::MinMax<int,Device> reducer_type;
+    typedef Kokkos::MinMax<int,Device> reducer_type;
     typedef typename reducer_type::value_type minmax_type;
     minmax_type minmax;
     Kokkos::parallel_reduce(face_cell_left.dimension_0(), KOKKOS_LAMBDA (const int& i, minmax_type& lminmax) {
