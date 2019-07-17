@@ -1,14 +1,14 @@
 KOKKOS_PATH = ${HOME}/kokkos
-KOKKOS_DEVICES=OpenMP
+KOKKOS_DEVICES = OpenMP
 
 default: build
 	echo "Start Build"
 
 ifneq (,$(findstring Cuda,$(KOKKOS_DEVICES)))
-CXX = ${KOKKOS_PATH}/config/nvcc_wrapper
+CXX = ${KOKKOS_PATH}/bin/nvcc_wrapper
 EXE = miniAero.cuda
-KOKKOS_ARCH = "SNB,Kepler35"
-KOKKOS_CUDA_OPTIONS=enable_lambda
+KOKKOS_ARCH = "Maxwell52"
+KOKKOS_CUDA_OPTIONS = enable_lambda
 else
 CXX = g++
 EXE = miniAero.host
