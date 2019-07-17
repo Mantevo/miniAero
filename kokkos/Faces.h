@@ -77,7 +77,7 @@ struct printfunctor {
 
   KOKKOS_INLINE_FUNCTION
   void operator() (int i) const {
-    if(view(i)>=view.dimension_0())
+    if(view(i)>=view.extent(0))
       printf("%i %i\n",i,view(i));
   }
 };
@@ -125,7 +125,7 @@ void copy_faces(Faces<Device> device_faces, std::vector<Face> & mesh_faces){
   Kokkos::deep_copy(device_faces.face_tangent_, face_tangent);
   Kokkos::deep_copy(device_faces.face_binormal_, face_binormal);
 
-  if(device_faces.face_cell_conn_.dimension_0() > 0) {
+  if(device_faces.face_cell_conn_.extent(0) > 0) {
     typedef Kokkos::View<int *, Kokkos::LayoutStride, Device> view_type;
     typedef Kokkos::BinOp1D< view_type > CompType;
     view_type face_cell_left = Kokkos::subview(device_faces.face_cell_conn_,Kokkos::ALL(),0);
@@ -133,12 +133,12 @@ void copy_faces(Faces<Device> device_faces, std::vector<Face> & mesh_faces){
     typedef Kokkos::MinMax<int,Device> reducer_type;
     typedef typename reducer_type::value_type minmax_type;
     minmax_type minmax;
-    Kokkos::parallel_reduce(face_cell_left.dimension_0(), KOKKOS_LAMBDA (const int& i, minmax_type& lminmax) {
+    Kokkos::parallel_reduce(face_cell_left.extent(0), KOKKOS_LAMBDA (const int& i, minmax_type& lminmax) {
       if(face_cell_left(i)<lminmax.min_val) lminmax.min_val = face_cell_left(i);
       if(face_cell_left(i)>lminmax.max_val) lminmax.max_val = face_cell_left(i);
     },reducer_type(minmax));
 
-    Kokkos::BinSort<view_type, CompType, Device, int> bin_sort(face_cell_left,CompType(face_cell_left.dimension_0()/2,minmax.min_val,minmax.max_val),true);
+    Kokkos::BinSort<view_type, CompType, Device, int> bin_sort(face_cell_left,CompType(face_cell_left.extent(0)/2,minmax.min_val,minmax.max_val),true);
     bin_sort.create_permute_vector();
     Kokkos::deep_copy(device_faces.permute_vector_, bin_sort.sort_order);
   }
