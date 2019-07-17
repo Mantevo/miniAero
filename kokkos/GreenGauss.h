@@ -80,10 +80,10 @@ void operator()( const int& ii )const{
     const int i = permute_vector_(ii);
     const int left_index = face_cell_conn_(i,0);
     const int right_index = face_cell_conn_(i,1);
-    
+
     const double gamma = 1.4;
     const double Rgas = 287.05;
-    
+
     const double left_r  = cell_values_(left_index, 0);
     const double left_ri = 1.0 / left_r;
     const double left_u  = cell_values_(left_index, 1) * left_ri;
@@ -94,7 +94,7 @@ void operator()( const int& ii )const{
     const double left_T  = left_e * (gamma - 1.0) / Rgas;
 
     const double primitives_l[5] = { left_r, left_u, left_v, left_w, left_T };
-    
+
     const double right_r  = cell_values_(right_index, 0);
     const double right_ri = 1.0 / right_r;
     const double right_u  = cell_values_(right_index, 1) * right_ri;
@@ -110,18 +110,18 @@ void operator()( const int& ii )const{
     const double cell_vol_right = cell_volumes_(right_index);
     const int cell_ind_0 = cell_flux_index_(i,0);
     const int cell_ind_1 = cell_flux_index_(i,1);
-  
+
     for(int idir = 0; idir < 3; ++idir)
     {
         const double face_norm = face_normal_(i,idir);
-        
+
         for(int icomp = 0; icomp < 5; ++icomp) {
             const double gradient = 0.5*(primitives_l[icomp]+primitives_r[icomp])*face_norm;
 
 #ifdef ATOMICS_FLUX
             double * left_cell = &cell_gradient_(left_index,0,icomp,idir);
             Kokkos::atomic_add(left_cell, gradient/cell_vol_left);
-      
+
             double * right_cell = &cell_gradient_(right_index,0,icomp,idir);
             Kokkos::atomic_add(right_cell, -gradient/cell_vol_right);
 #endif
@@ -167,13 +167,13 @@ struct green_gauss_boundary_face{
 KOKKOS_INLINE_FUNCTION
 void operator()( int i )const{
   int index = face_cell_conn_(i,0);
-    
+
   const double gamma = 1.4;
   const double Rgas = 287.05;
 
   double gradient[5][3];
   double primitives[5];
-    
+
     const double r  = cell_values_(index, 0);
     const double ri = 1.0 / r;
     const double u  = cell_values_(index, 1) * ri;
@@ -182,13 +182,13 @@ void operator()( int i )const{
     const double k  = 0.5 * (u * u + v * v + w * w);
     const double e  = cell_values_(index, 4) * ri - k;
     const double T  = e * (gamma - 1.0) / Rgas;
-    
+
     primitives[0] = r;
     primitives[1] = u;
     primitives[2] = v;
     primitives[3] = w;
     primitives[4] = T;
-    
+
   for(int icomp = 0; icomp < 5; ++icomp)
   {
     for(int idir = 0; idir < 3; ++idir)
@@ -245,7 +245,7 @@ void operator()( int i )const{
 
   for(int icomp = 0; icomp < 5; ++icomp)
   {
-    
+
     for(int idir = 0; idir < 3; ++idir)
     {
       gradient_(i,icomp,idir) = 0;
@@ -302,7 +302,7 @@ class GreenGauss {
       const int ninternal_faces = internal_faces_->nfaces_;
       green_gauss_face<Device> face_gradient(*internal_faces_, sol_np1_vec, *cells_);
       Kokkos::parallel_for(ninternal_faces, face_gradient);
-  
+
       //Boundary Faces
       typename std::vector<Faces<Device> *>::iterator bcf_iter, bcf_iter_end;
       bcf_iter = bc_faces_->begin();
@@ -313,11 +313,11 @@ class GreenGauss {
         green_gauss_boundary_face<Device> bc_gradient(*faces, sol_np1_vec, *cells_);
         Kokkos::parallel_for(nboundary_faces, bc_gradient);
       }
-  
+
       //Sum of all contributions.
       green_gauss_gradient_sum<Device> gradient_sum(*cells_, gradients);
       Kokkos::parallel_for(mesh_data_->num_owned_cells, gradient_sum);
-      Device::fence();
+      Device().fence();
     }
 
     //communicate the computed gradient for ghost cells.
@@ -325,16 +325,16 @@ class GreenGauss {
       //copy values to be send from device to host
       extract_shared_tensor<Device, 5, 3> extract_shared_gradients(gradients, mesh_data_->send_local_ids, shared_gradient_vars);//sol_np1_vec, send_local_ids, shared_cells);
       Kokkos::parallel_for(mesh_data_->num_ghosts,extract_shared_gradients);
-      Device::fence();
+      Device().fence();
       Kokkos::deep_copy(shared_gradient_vars_host, shared_gradient_vars);
-  
+
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars_host.ptr_on_device(),ghosted_gradient_vars_host.ptr_on_device(), 15);
-  
+
       //copy values to be sent from host to device
       Kokkos::deep_copy(ghosted_gradient_vars, ghosted_gradient_vars_host);
       insert_ghost_tensor<Device, 5, 3> insert_ghost_gradients(gradients, mesh_data_->recv_local_ids, ghosted_gradient_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_gradients);
-      Device::fence();
+      Device().fence();
     }
 
   private:
