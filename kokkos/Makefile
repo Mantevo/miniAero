@@ -1,6 +1,5 @@
 KOKKOS_PATH = ${HOME}/kokkos
 KOKKOS_DEVICES = OpenMP
-KOKKOS_OPTIONS = disable_deprecated_code
 
 default: build
 	echo "Start Build"
