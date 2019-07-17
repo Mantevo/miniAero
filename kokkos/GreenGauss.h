@@ -317,7 +317,7 @@ class GreenGauss {
       //Sum of all contributions.
       green_gauss_gradient_sum<Device> gradient_sum(*cells_, gradients);
       Kokkos::parallel_for(mesh_data_->num_owned_cells, gradient_sum);
-      Device().fence();
+      Kokkos::fence();
     }
 
     //communicate the computed gradient for ghost cells.
@@ -325,7 +325,7 @@ class GreenGauss {
       //copy values to be send from device to host
       extract_shared_tensor<Device, 5, 3> extract_shared_gradients(gradients, mesh_data_->send_local_ids, shared_gradient_vars);//sol_np1_vec, send_local_ids, shared_cells);
       Kokkos::parallel_for(mesh_data_->num_ghosts,extract_shared_gradients);
-      Device().fence();
+      Kokkos::fence();
       Kokkos::deep_copy(shared_gradient_vars_host, shared_gradient_vars);
 
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_gradient_vars_host.ptr_on_device(),ghosted_gradient_vars_host.ptr_on_device(), 15);
@@ -334,7 +334,7 @@ class GreenGauss {
       Kokkos::deep_copy(ghosted_gradient_vars, ghosted_gradient_vars_host);
       insert_ghost_tensor<Device, 5, 3> insert_ghost_gradients(gradients, mesh_data_->recv_local_ids, ghosted_gradient_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_gradients);
-      Device().fence();
+      Kokkos::fence();
     }
 
   private:
