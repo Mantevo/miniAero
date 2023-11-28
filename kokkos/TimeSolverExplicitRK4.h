@@ -335,7 +335,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
    copy<Device> copy_solution( sol_n_vec, sol_np1_vec);
    Kokkos::parallel_for(nowned_cells, copy_solution);
 
-   Device::fence();
+   Kokkos::fence();
 
    for (ts_data_.time_it = 1; ts_data_.time_it <= ts_data_.max_its; ++ts_data_.time_it)
    {
@@ -354,7 +354,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
         //Update temporary solution used to evaluate the residual for this RK stage
         update<Device> update_rk_stage(alpha_[irk], res_vec, sol_n_vec, sol_temp_vec);
         Kokkos::parallel_for(nowned_cells, update_rk_stage);
-        Device::fence();
+        Kokkos::fence();
 
         #ifdef WITH_MPI
         // Update ghosted values (using sol_temp_vec since it is used for all residual calculations.)
@@ -362,7 +362,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
           //copy values to be send from device to host
           extract_shared_vector<Device, 5> extract_shared_values(sol_temp_vec, send_local_ids, shared_conserved_vars);
           Kokkos::parallel_for(num_ghosts,extract_shared_values);
-          Device::fence();
+          Kokkos::fence();
           Kokkos::deep_copy(shared_conserved_vars_host, shared_conserved_vars);
 
           communicate_ghosted_cell_data(sendCount, recvCount, shared_conserved_vars_host.ptr_on_device(),ghosted_conserved_vars_host.ptr_on_device(), 5);
@@ -371,13 +371,13 @@ void TimeSolverExplicitRK4<Device>::Solve()
           Kokkos::deep_copy(ghosted_conserved_vars, ghosted_conserved_vars_host);
           insert_ghost_vector<Device, 5> insert_ghost_values(sol_temp_vec, recv_local_ids, ghosted_conserved_vars);
           Kokkos::parallel_for(num_ghosts, insert_ghost_values);
-          Device::fence();
+          Kokkos::fence();
         #endif
 
         //Zero fluxes
         zero_cell_flux<Device> zero_flux(cells);
         Kokkos::parallel_for(nowned_cells, zero_flux);
-        Device::fence();
+        Kokkos::fence();
 
         //Compute Gradients and Limiters
         if(options_.second_order_space || options_.viscous){
@@ -410,7 +410,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
             compute_face_flux<Device, false, roe_flux<Device>, newtonian_viscous_flux<Device> > fluxop(internal_faces, sol_temp_vec, gradients, limiters, cells, inviscid_flux_evaluator, viscous_flux_evaluator);
             Kokkos::parallel_for(ninternal_faces,fluxop);
           }
-          Device::fence();
+          Kokkos::fence();
         }
         else{
           no_viscous_flux<Device> viscous_flux_evaluator;
@@ -422,7 +422,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
             compute_face_flux<Device, false, roe_flux<Device>, no_viscous_flux<Device> > fluxop(internal_faces, sol_temp_vec, gradients, limiters, cells, inviscid_flux_evaluator, viscous_flux_evaluator);
             Kokkos::parallel_for(ninternal_faces,fluxop);
           }
-          Device::fence();
+          Kokkos::fence();
         }
 
         //Extrapolated BC fluxes
@@ -435,7 +435,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
           compute_extrapolateBC_flux<Device, roe_flux<Device> > boundary_fluxop(bc_faces, sol_temp_vec, cells, inviscid_flux_evaluator);
           Kokkos::parallel_for(nboundary_faces,boundary_fluxop);
         }
-        Device::fence();
+        Kokkos::fence();
 
         //Tangent BC fluxes
         typename std::vector<Faces<Device> >::iterator tf_iter, tf_iter_end;
@@ -447,7 +447,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
           compute_tangentBC_flux<Device, roe_flux<Device> > boundary_fluxop(bc_faces, sol_temp_vec, cells, inviscid_flux_evaluator);
           Kokkos::parallel_for(nboundary_faces,boundary_fluxop);
         }
-        Device::fence();
+        Kokkos::fence();
 
         //Noslip BC fluxes
         typename std::vector<Faces<Device> >::iterator if_iter, if_iter_end;
@@ -460,7 +460,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
           compute_NoSlipBC_flux<Device, roe_flux<Device>, newtonian_viscous_flux<Device> > boundary_fluxop(bc_faces, sol_temp_vec, cells, inviscid_flux_evaluator, viscous_flux_evaluator);
           Kokkos::parallel_for(nboundary_faces,boundary_fluxop);
         }
-        Device::fence();
+        Kokkos::fence();
 
         //Inflow BC fluxes
         typename std::vector<Faces<Device> >::iterator nsf_iter, nsf_iter_end;
@@ -472,17 +472,17 @@ void TimeSolverExplicitRK4<Device>::Solve()
           compute_inflowBC_flux<Device, roe_flux<Device> > boundary_fluxop(bc_faces, sol_temp_vec, cells, &inflow_state[0], inviscid_flux_evaluator);
           Kokkos::parallel_for(nboundary_faces,boundary_fluxop);
         }
-        Device::fence();
+        Kokkos::fence();
 
         //Sum up all of the contributions
         apply_cell_flux<Device> flux_residual(cells, res_vec, ts_data_.dt);
         Kokkos::parallel_for(nowned_cells, flux_residual);
-        Device::fence();
- 
+        Kokkos::fence();
+
         //Update np1 solution with each stages contribution
         update<Device> update_fields(beta_[irk],res_vec,sol_np1_vec,sol_np1_vec);
         Kokkos::parallel_for(nowned_cells, update_fields);
-        Device::fence();
+        Kokkos::fence();
       }
       // Update the solution vector after having run all of the RK stages.
       copy<Device> copy_solution( sol_np1_vec, sol_n_vec);
@@ -490,7 +490,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
 
    }
 
-   Device::fence();
+   Kokkos::fence();
    if(my_id_==0){
      fprintf(stdout,"\n ... Device Run time: %8.2f seconds ...\n", timer.seconds());
    }
@@ -505,7 +505,7 @@ void TimeSolverExplicitRK4<Device>::Solve()
    #endif
 
     size_t current_mem_usage, high_water_mem_usage;
-    get_memory_usage(current_mem_usage, high_water_mem_usage); 
+    get_memory_usage(current_mem_usage, high_water_mem_usage);
     current_mem_usage = current_mem_usage/(1024.0*1024.0);
     high_water_mem_usage = high_water_mem_usage/(1024.0*1024.0);
     fprintf(stdout,"\n CPU Memory Usage (Current, High Water) - end of calculation: %lu MB, %lu MB", current_mem_usage, high_water_mem_usage);

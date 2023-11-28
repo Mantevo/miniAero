@@ -83,16 +83,16 @@ struct min_max_face{
 KOKKOS_INLINE_FUNCTION
 void operator()( const int& ii )const{
     const int i = permute_vector_(ii);
-    
+
     const int left_index = face_cell_conn_(i,0);
     const int right_index = face_cell_conn_(i,1);
 
     double primitives_l[5];
     double primitives_r[5];
-    
+
     const double gamma = 1.4;
     const double Rgas = 287.05;
-    
+
     if(interior) {
         double r  = cell_values_(left_index, 0);
         double ri = 1.0 / r;
@@ -102,13 +102,13 @@ void operator()( const int& ii )const{
         double k  = 0.5 * (u * u + v * v + w * w);
         double e  = cell_values_(left_index, 4) * ri - k;
         double T  = e * (gamma - 1.0) / Rgas;
-        
+
         primitives_l[0] = r;
         primitives_l[1] = u;
         primitives_l[2] = v;
         primitives_l[3] = w;
         primitives_l[4] = T;
-        
+
         r  = cell_values_(right_index, 0);
         ri = 1.0 / r;
         u  = cell_values_(right_index, 1) * ri;
@@ -117,7 +117,7 @@ void operator()( const int& ii )const{
         k  = 0.5 * (u * u + v * v + w * w);
         e  = cell_values_(right_index, 4) * ri - k;
         T  = e * (gamma - 1.0) / Rgas;
-        
+
         primitives_r[0] = r;
         primitives_r[1] = u;
         primitives_r[2] = v;
@@ -132,7 +132,7 @@ void operator()( const int& ii )const{
         const double k  = 0.5 * (u * u + v * v + w * w);
         const double e  = cell_values_(left_index, 4) * ri - k;
         const double T  = e * (gamma - 1.0) / Rgas;
-        
+
         primitives_l[0] = r;
         primitives_l[1] = u;
         primitives_l[2] = v;
@@ -324,7 +324,7 @@ struct gather_limiter{
   typedef typename ViewTypes<Device>::cell_storage_field_type cell_storage_field_type;
 
   const int nfaces_;
-  cell_storage_field_type stored_limiter_; 
+  cell_storage_field_type stored_limiter_;
   solution_field_type limiter_;
 
   gather_limiter(int nfaces, cell_storage_field_type stored_limiter, solution_field_type limiter):
@@ -369,7 +369,7 @@ struct limiter_face{
   solution_field_type cell_min_, cell_max_, cell_values_;
   vector_field_type face_coordinates_, cell_coordinates_;
   gradient_field_type cell_gradients_;
-  cell_storage_field_type limiter_; 
+  cell_storage_field_type limiter_;
   Kokkos::View<const int*, Device> permute_vector_;
 
   limiter_face(Faces<Device> faces, solution_field_type cell_values, Cells<Device> cells,
@@ -392,7 +392,7 @@ void operator()( const int& ii )const{
   const int i = permute_vector_(ii);
   const int left_index = face_cell_conn_(i,0);
   const int right_index = face_cell_conn_(i,1);
-	
+
   double conservatives_l[5];
 	double conservatives_r[5];
   double primitives_l[5];
@@ -400,7 +400,7 @@ void operator()( const int& ii )const{
 
   for (int icomp = 0; icomp < 5; ++icomp)
   {
-    if(interior){ 
+    if(interior){
       conservatives_l[icomp] = cell_values_(left_index,icomp);
       conservatives_r[icomp] = cell_values_(right_index,icomp);
     }
@@ -410,11 +410,11 @@ void operator()( const int& ii )const{
   }
 
   if(interior){
-    ComputePrimitives<device_type>(conservatives_l, primitives_l); 
-    ComputePrimitives<device_type>(conservatives_r, primitives_r); 
+    ComputePrimitives<device_type>(conservatives_l, primitives_l);
+    ComputePrimitives<device_type>(conservatives_r, primitives_r);
   }
   else{
-    ComputePrimitives<device_type>(conservatives_l, primitives_l); 
+    ComputePrimitives<device_type>(conservatives_l, primitives_l);
   }
 
 //Compute left limiter value and compute right limiter value
@@ -489,10 +489,10 @@ void operator()( const int& ii )const{
 #ifdef CELL_FLUX
 for (int icomp = 0; icomp < 5; ++icomp)
 {
-  limiter_(left_index, cell_flux_index_(i,0), icomp) = limiter_left[icomp]; 
+  limiter_(left_index, cell_flux_index_(i,0), icomp) = limiter_left[icomp];
 
   if(interior){
-    limiter_(right_index, cell_flux_index_(i,1), icomp) = limiter_right[icomp]; 
+    limiter_(right_index, cell_flux_index_(i,1), icomp) = limiter_right[icomp];
   }
 }
 #endif
@@ -538,24 +538,24 @@ class StencilLimiter{
     const int ninternal_faces = internal_faces_->nfaces_;
     min_max_face<Device, true> min_max_internal(*internal_faces_, sol_np1_vec, *cells_, stored_min_, stored_max_);
     Kokkos::parallel_for(ninternal_faces, min_max_internal);
-  
+
     //Boundary Faces
     typename std::vector<Faces<Device> *>::iterator bcf_iter, bcf_iter_end;
     bcf_iter = bc_faces_->begin();
     bcf_iter_end = bc_faces_->end();
-      
+
     for(; bcf_iter != bcf_iter_end; ++bcf_iter){
       Faces<Device> * faces = *bcf_iter;
       const int nboundary_faces = faces->nfaces_;
       min_max_face<Device, false> bc_min_max(*faces, sol_np1_vec, *cells_, stored_min_, stored_max_);
       Kokkos::parallel_for(nboundary_faces, bc_min_max);
     }
-      
-    Device::fence();
-  
+
+    Kokkos::fence();
+
     gather_min_max<Device> gather(*cells_, stored_min_, stored_max_, stencil_min_, stencil_max_);
     Kokkos::parallel_for(mesh_data_->num_owned_cells, gather);
-    Device::fence();
+    Kokkos::fence();
   }
 
   void communicate_min_max(){
@@ -563,28 +563,28 @@ class StencilLimiter{
   // For min
       extract_shared_vector<Device, 5> extract_shared_min(stencil_min_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_min);
-      Device::fence();
+      Kokkos::fence();
       Kokkos::deep_copy(shared_vars_host, shared_vars);
-  
+
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.ptr_on_device(),ghosted_vars_host.ptr_on_device(), 5);
-  
+
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
       insert_ghost_vector<Device, 5> insert_ghost_min(stencil_min_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_min);
-      Device::fence();
+      Kokkos::fence();
 
   // For max
       extract_shared_vector<Device, 5> extract_shared_max(stencil_max_, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_max);
-      Device::fence();
+      Kokkos::fence();
       Kokkos::deep_copy(shared_vars_host, shared_vars);
-  
+
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.ptr_on_device(),ghosted_vars_host.ptr_on_device(), 5);
-  
+
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
       insert_ghost_vector<Device, 5> insert_ghost_max(stencil_max_, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_max);
-      Device::fence();
+      Kokkos::fence();
   // TODO: Maybe combined or overlapped in future.
   }
 
@@ -597,7 +597,7 @@ class StencilLimiter{
     limiter_face<Device, true> limiter_internal(*internal_faces_, sol_np1_vec, *cells_, gradients,
       stencil_min_, stencil_max_, stored_limiter_);
     Kokkos::parallel_for(ninternal_faces, limiter_internal);
-  
+
     //Boundary Faces
     typename std::vector<Faces<Device> *>::iterator bcf_iter, bcf_iter_end;
     bcf_iter = bc_faces_->begin();
@@ -608,26 +608,26 @@ class StencilLimiter{
       limiter_face<Device, false> limiter_bc(*faces, sol_np1_vec, *cells_, gradients, stencil_min_, stencil_max_, stored_limiter_);
       Kokkos::parallel_for(nboundary_faces, limiter_bc);
     }
-    Device::fence();
-  
+    Kokkos::fence();
+
     gather_limiter<Device> gather(cells_->nfaces_, stored_limiter_, limiter);
     Kokkos::parallel_for(mesh_data_->num_owned_cells, gather);
-    Device::fence();
+    Kokkos::fence();
   }
 
   void communicate_limiter(solution_field_type limiter) {
 
       extract_shared_vector<Device, 5> extract_shared_limiter(limiter, mesh_data_->send_local_ids, shared_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, extract_shared_limiter);
-      Device::fence();
+      Kokkos::fence();
       Kokkos::deep_copy(shared_vars_host, shared_vars);
-  
+
       communicate_ghosted_cell_data(mesh_data_->sendCount, mesh_data_->recvCount, shared_vars_host.ptr_on_device(), ghosted_vars_host.ptr_on_device(), 5);
-  
+
       Kokkos::deep_copy(ghosted_vars, ghosted_vars_host);
       insert_ghost_vector<Device, 5> insert_ghost_limiter(limiter, mesh_data_->recv_local_ids, ghosted_vars);
       Kokkos::parallel_for(mesh_data_->num_ghosts, insert_ghost_limiter);
-      Device::fence();
+      Kokkos::fence();
   }
 
   private:
